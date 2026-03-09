@@ -18,7 +18,7 @@ Usage:
 
 Screenshots:
 Recent History listing your 25 most recent songs listened
-<img width="1112" height="1004" alt="image" src="https://github.com/user-attachments/assets/386f8b8e-0381-4e0c-8c43-0edafc00eaa8" />
+<img width="804" height="1004" alt="recently played" src="https://github.com/user-attachments/assets/290ad9f3-64de-475e-9b16-f4eef83c7daa" />
 
 Top songs also being displayed after user makes selections
 <img width="728" height="1168" alt="image" src="https://github.com/user-attachments/assets/8a479709-0f22-43b4-8bce-660938f52fff" />
