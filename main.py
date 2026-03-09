@@ -6,10 +6,12 @@ from spotipy.oauth2 import SpotifyOAuth
 import streamlit as st
 import pandas as pd
 
+import json
+
 client_id = ''
 client_secret = ''
 redirect_uri = 'http://127.0.0.1:5000/callback'
-scope = 'playlist-read-private,streaming,user-top-read,user-read-recently-played,playlist-modify-private'
+scope = 'playlist-read-private,streaming,user-top-read,user-read-recently-played,playlist-modify-private,playlist-modify-public'
 
 ### get track info from list of track_ids
 ### was unable to get sp.tracks(track_ids) to work properly after troubleshooting
@@ -45,64 +47,104 @@ sp_oauth = SpotifyOAuth(
     cache_path='.cache',
     show_dialog = True
 )
-    
+
 sp = Spotify(auth_manager=sp_oauth)
 
 ### set up streamlit web page
-st.set_page_config(page_title='Spotify Recent Listen History', page_icon=':musical_note:')
-st.title('Listening History Analysis')
-st.write('Discover insights about your Spotify listening history')
+st.set_page_config(page_title='Spotify Recent Listen History and Top Songs', page_icon=':musical_note:')
+st.title('Listening History Analysis and Top Songs')
+st.write('Discover insights about your Spotify listening history and top songs')
 
-###### CHANGE - put in session_state var to only make once and never again ######
-tracks = get_listening_history()
-### create DataFrame and calculate columns to display
-df = pd.DataFrame(tracks)
-df['song info'] = df['track_name'] + " - " + df['artists']
-# convert song duration in ms into MM:SS format
-song_lengths = []
-for d in df['song duration']:
-    minutes, ms = divmod(d, 60000) # 60000 ms in a minute, remainder in ms
-    song_lengths.append(f"{minutes}:{ms//1000:02}")
-df['song length'] = song_lengths
 
-st.subheader('Recently Played Songs')
-st.dataframe(df[['song info', 'song length']])
+if 'history' not in st.session_state:
+    st.session_state.history = None
+
+if st.session_state.history is None:
+    tracks = get_listening_history()
+    df = pd.DataFrame(tracks)
+    df['song info'] = df['track_name'] + " - " + df['artists']
+    # convert song duration in ms into MM:SS format
+    song_lengths = []
+    for d in df['song duration']:
+        minutes, ms = divmod(d, 60000) # 60000 ms in a minute, remainder in ms
+        song_lengths.append(f"{minutes}:{ms//1000:02}")
+    df['song length'] = song_lengths
+    st.session_state.history = df
+    
+if st.session_state.history is not None:
+    st.subheader('Recently Played Songs')
+    st.dataframe(st.session_state.history[['song info', 'song length']])
 
 ### get top songs based on input time range, returns list of track objects
-def top_songs(time_range, limit=20):
-    songs = sp.current_user_top_tracks(limit=limit, time_range=time_range)
+def top_songs(range, limit=20):
+    songs = sp.current_user_top_tracks(limit=limit, time_range=range)
     songs = songs['items']
+
+    #df = pd.DataFrame(top_songs) # testing
+    df = pd.DataFrame(songs)
+    df['song info'] = df['name'] + ' - ' + df['artists'].apply(lambda x: ', '.join([a['name'] for a in x]))
+    df['album name'] = df['album'].apply(lambda x: x['name'])
     return songs
 
-### button functions for top songs
+
+### create playlist with given songs
+def create_playlist(name, desc):
+    playlist_id = sp.current_user_playlist_create(name=name,public=True,description=desc)
+    playlist_id = playlist_id['id']
+    song_ids = st.session_state.df['song id'].tolist()
+    sp.playlist_add_items(playlist_id, song_ids)
+
+
+###### TOP SONGS ######
 st.write("User's top songs")
 s_artist, m_artist, l_artist = st.columns(3)
-time_frame = 'short_term'
-if s_artist.button('Short time frame'):
-    st.write('Short term')
-    time_frame = 'short_term'
-if m_artist.button('Medium time frame'):
-    st.write('Medium term')
-    time_frame = 'medium_term'
-if l_artist.button('Long time frame'):
-    st.write('Long term')
-    time_frame = 'long_term'
 
-### button function to display and create playlist of top songs
-def disable_button(key):
-    st.session_state[key] = True
+### initialize session_state variables
+if 'time_frame' not in st.session_state:
+    st.session_state.time_frame = 'short_term'
 
-buttons = ['button_pressed']
+buttons = ['songs_gathered']
 for key in buttons:
     if key not in st.session_state:
         st.session_state[key] = False
 
+if 'df' not in st.session_state:
+    st.session_state.df = None
+
+### buttons to choose which time frame to search over
+if s_artist.button('Short time frame'):
+    st.write('Short term')
+    st.session_state.time_frame = 'short_term'
+if m_artist.button('Medium time frame'):
+    st.write('Medium term')
+    st.session_state.time_frame = 'medium_term'
+if l_artist.button('Long time frame'):
+    st.write('Long term')
+    st.session_state.time_frame = 'long_term'
+
 
 ### initially only wanted this button to operate once, but realized better functionality
-### when able to be used more than once in a single sitting
+### when able to be used more than once in a single session
 if st.button('Top Songs'):
-    song_list = top_songs(time_frame)
-    st.write(song_list)
+    st.write(f'Gathering Top Songs over {st.session_state.time_frame}')
+    st.session_state.songs_gathered = True
+    song_list = top_songs(st.session_state.time_frame)
+    df = pd.DataFrame(song_list)
+    df['song info'] = df['name'] + ' - ' + df['artists'].apply(lambda x: ', '.join([a['name'] for a in x]))
+    df['album name'] = df['album'].apply(lambda x: x['name'])
+    df['song id'] = df['id']
+    st.subheader('Top Songs')
+    st.session_state.df = df
+    
+### only display table when data is populated, and keep data displayed after next button press    
+if st.session_state.df is not None:
+    st.dataframe(st.session_state.df[['song info', 'album name', 'song id']])
 
-if st.button('create playlist', on_click=disable_button, args=('button_pressed',), disabled=st.session_state.button_pressed):
+
+### create spotify playlist for user account
+### additionaly confirmation to create playlist?
+if st.button('create playlist', disabled=not st.session_state.songs_gathered):
     st.write('Creating playlist, finished product will be found in your Spotify library.')
+    playlist_name = 'Top songs'
+    playlist_desc = f'top songs over {st.session_state.time_frame}'
+    create_playlist(playlist_name, playlist_desc)
