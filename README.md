@@ -17,8 +17,11 @@ Usage:
 - Press the "Create Playlist" button to create a public playlist on your Spotify account, with those top 20 songs in it
 
 Screenshots:
+Recent History listing your 25 most recent songs listened
 <img width="1112" height="1004" alt="image" src="https://github.com/user-attachments/assets/386f8b8e-0381-4e0c-8c43-0edafc00eaa8" />
 
+Top songs also being displayed after user makes selections
 <img width="728" height="1168" alt="image" src="https://github.com/user-attachments/assets/8a479709-0f22-43b4-8bce-660938f52fff" />
 
+Playlist created on the Spotify user's account
 <img width="1563" height="1198" alt="image" src="https://github.com/user-attachments/assets/fd777599-5b54-4160-a7cd-0c5fc00063d2" />
